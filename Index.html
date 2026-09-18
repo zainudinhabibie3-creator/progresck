@@ -1,0 +1,1577 @@
+<!-- Chosen Palette: Dark Modern Minimalist Futuristic (Slate Charcoal background #0f1117, Bento Surface #1a1d29, Cyan Accent #00f2fe, Purple Accent #7928ca, Amber Warning #f59e0b, Red Danger #ef4444, Emerald Safe #10b981) -->
+
+<!-- Application Structure Plan:
+1. Executive Header & Multi-Role View Switcher: Top navbar allowing seamless switching between Public View, Inspector View, and Admin View, with real-time notification drawer and active session indicators.
+2. Bento Grid KPI & Performance Summary: Top-tier metric cards displaying Total Works, Active Projects, Completed Projects, Overdue Count, Total Contract Value, and Aggregate Financial/Physical Progress.
+3. Risk & Anomaly Watchlist Dashboard: High-priority cards auto-filtering items with critical countdowns (H-7 to H-0), high physical deviation (< -10%), and financial disbursement anomalies (Financial progress exceeding Physical progress by > 15%).
+4. Interactive Analytics & Visualizations:
+   - Chart 1: Physical vs Financial Progress comparison bar chart (Chart.js Canvas).
+   - Chart 2: Project Risk Status & Deviation Level Donut Chart (Chart.js Canvas).
+5. Comprehensive Work Package Directory: Fully searchable, filterable data table with real-time pagination, progress bars, risk badges, and one-click detailed drill-down modal.
+6. Detailed Work Package Inspection Workspace (Modal):
+   - Contract Master Details & Automatic Completion Date/Countdown Engine.
+   - Physical Progress Log & Entry Simulator (calculating target, realization, & deviation).
+   - Financial Disbursement Log & Entry Simulator (SPM2D/Termyn history).
+   - Contract Addendum Tracker (calculating impact on duration & revised contract value).
+   - Automated Risk & Fraud Indication Assessment Engine (objective internal verification criteria).
+7. User Management Console (Admin Exclusive): Real-time user accounts database simulation with status toggles, role assignments, and activity logs.
+8. Integrated GAS Server Script & Spreadsheet Schema Modal: Instant access to copy-pasteable Code.gs and database auto-initialization script.
+Why this structure? It decouples complex tabular contract data into intuitive Bento visual layers, allowing both high-level executives and field engineers to immediately identify high-risk projects without digging through raw spreadsheets. -->
+
+<!-- Visualization & Content Choices:
+1. Metrics/KPIs -> Inform/Summary -> Glass Bento Cards + Vanilla JS dynamic counter -> Instant overview -> High usability -> HTML/CSS.
+2. Physical vs Financial Progress -> Compare -> Dual Bar Chart (Chart.js Canvas) -> Dynamic tooltips & auto-calculated gap -> Direct visualization of disbursement vs physical output -> Chart.js Canvas (NO SVG).
+3. Risk & Status Distribution -> Organize -> Donut Chart (Chart.js Canvas) -> Segmented risk breakdown -> Quick executive synthesis -> Chart.js Canvas (NO SVG).
+4. Countdown & Deviation Badge System -> Inform/Risk -> Dynamic HTML/CSS Badges + JS Date Difference Calc -> Color-coded urgency alerts -> Visual prioritization -> HTML/Tailwind CSS.
+5. Interactive Data Table -> Organize/Explore -> Dynamic HTML Table + JS Search & Category Filtering -> Responsive row details & action triggers -> Fast navigation -> Vanilla JS.
+6. Icons -> Visual Navigation -> FontAwesome CSS Web Font icons (`<i class="fa-solid fa-..."></i>`) -> Clean presentation -> Strictly NO SVG tags used. -->
+
+<!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIMON-PRO — Monitoring Progres Fisik & Keuangan Pekerjaan</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              bg: '#0f1117',
+              card: '#1a1d29',
+              border: '#2a2e3d',
+              cyan: '#00f2fe',
+              purple: '#7928ca',
+              emerald: '#10b981',
+              amber: '#f59e0b',
+              rose: '#ef4444'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- SweetAlert2 CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <!-- FontAwesome Web Font Icons CDN (NO SVG) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Inter Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #0f1117;
+      color: #f3f4f6;
+    }
+    .glass-card {
+      background: rgba(26, 29, 41, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glass-card-hover {
+      transition: all 0.25s ease-in-out;
+    }
+    .glass-card-hover:hover {
+      border-color: rgba(0, 242, 254, 0.35);
+      box-shadow: 0 10px 30px -5px rgba(0, 242, 254, 0.12);
+      transform: translateY(-2px);
+    }
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    .chart-container {
+      position: relative;
+      width: 100%;
+      max-width: 650px;
+      margin-left: auto;
+      margin-right: auto;
+      height: 300px;
+      max-height: 380px;
+    }
+    @media (min-width: 768px) {
+      .chart-container {
+        height: 340px;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between antialiased selection:bg-cyan-500 selection:text-black">
+
+  <!-- TOP NAVBAR -->
+  <header class="sticky top-0 z-40 w-full glass-card border-b border-brand-border/60">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      
+      <!-- Logo & Title -->
+      <div class="flex items-center gap-3 cursor-pointer" onclick="switchRole('PUBLIC')">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-400 to-purple-600 flex items-center justify-center text-black shadow-lg shadow-cyan-500/20">
+          <i class="fa-solid fa-chart-line text-lg text-white"></i>
+        </div>
+        <div>
+          <h1 class="text-base font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-white via-gray-200 to-cyan-400">
+            SIMON-PRO
+          </h1>
+          <p class="text-[9px] text-cyan-400 tracking-wider font-semibold uppercase">Monitoring Fisik & Keuangan Pekerjaan</p>
+        </div>
+      </div>
+
+      <!-- Center Dynamic Badge -->
+      <div class="hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-brand-bg/80 border border-brand-border text-xs">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span id="systemStatusText" class="text-gray-300 font-medium">Sistem Monitoring Aktif — TA 2026</span>
+      </div>
+
+      <!-- Role Selector & Actions -->
+      <div class="flex items-center gap-2 sm:gap-3">
+        <!-- Role Simulator Dropdown -->
+        <div class="relative inline-block text-left">
+          <select id="roleSelector" onchange="handleRoleChange(this.value)" class="px-3 py-1.5 rounded-xl bg-brand-bg border border-brand-cyan/40 text-xs text-cyan-300 font-semibold focus:outline-none focus:ring-1 focus:ring-cyan-400 cursor-pointer">
+            <option value="PUBLIC">🌐 Akses Publik</option>
+            <option value="USER">👷 User / Pengawas Lapangan</option>
+            <option value="ADMIN">⚡ Admin Utama</option>
+          </select>
+        </div>
+
+        <!-- Notification Bell -->
+        <button onclick="toggleNotifDrawer()" class="relative p-2 rounded-xl bg-brand-border/40 text-gray-300 hover:text-white hover:bg-brand-border transition">
+          <i class="fa-regular fa-bell text-base"></i>
+          <span id="notifBadge" class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-[9px] font-bold text-white flex items-center justify-center">3</span>
+        </button>
+
+        <!-- GAS Script Modal Trigger -->
+        <button onclick="openModalGasCode()" title="Lihat Backend Code.gs & DB Setup" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-purple-950/80 hover:bg-purple-900 text-purple-300 border border-purple-700/50 transition flex items-center gap-1.5">
+          <i class="fa-solid fa-code"></i>
+          <span class="hidden sm:inline">Backend GAS</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- NOTIFICATION DRAWER / POPOVER -->
+  <div id="notifDrawer" class="hidden fixed top-16 right-4 sm:right-12 z-50 w-80 sm:w-96 glass-card rounded-2xl border border-brand-border shadow-2xl p-4 space-y-3">
+    <div class="flex justify-between items-center border-b border-brand-border pb-2">
+      <h3 class="text-xs font-bold text-white flex items-center gap-1.5">
+        <i class="fa-solid fa-triangle-exclamation text-amber-400"></i> Peringatan Sistem & Deadline
+      </h3>
+      <button onclick="toggleNotifDrawer()" class="text-gray-400 hover:text-white text-xs">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <div id="notifContainer" class="space-y-2 max-h-64 overflow-y-auto text-xs">
+      <!-- Dynamic Notifications -->
+    </div>
+  </div>
+
+  <!-- MAIN CONTAINER -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- HERO SECTION -->
+    <section class="relative overflow-hidden rounded-3xl glass-card p-6 sm:p-8 border border-brand-border">
+      <div class="absolute -right-12 -bottom-12 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="absolute -left-12 -top-12 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
+      
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative z-10">
+        <div class="space-y-2 max-w-2xl">
+          <span id="roleBadgeTag" class="inline-block px-3 py-1 rounded-full bg-cyan-950/80 text-cyan-400 text-xs font-bold border border-cyan-800/60">
+            <i class="fa-solid fa-globe mr-1"></i> Mode Tampilan Publik (Transparansi Real-Time)
+          </span>
+          <h2 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight leading-tight">
+            Transparansi & Akuntabilitas <span class="bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-500">Pekerjaan Infrastruktur</span>
+          </h2>
+          <p class="text-xs sm:text-sm text-gray-400 leading-relaxed">
+            Sistem pengawasan terintegrasi untuk mengukur progres fisik, penyerapan keuangan, deviasi keterlambatan, hingga verifikasi anomali secara presisi.
+          </p>
+        </div>
+
+        <!-- Quick Actions for Authenticated Roles -->
+        <div id="heroActionBtns" class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          <button onclick="openModalTambahPekerjaan()" class="hidden role-admin-user px-4 py-2.5 rounded-xl text-xs font-bold bg-cyan-400 hover:bg-cyan-300 text-black shadow-lg shadow-cyan-500/20 transition flex items-center gap-2">
+            <i class="fa-solid fa-plus text-sm"></i> Tambah Paket Pekerjaan
+          </button>
+          <button onclick="exportReportPDF()" class="px-4 py-2.5 rounded-xl text-xs font-bold bg-brand-card hover:bg-brand-border text-gray-200 border border-brand-border transition flex items-center gap-2">
+            <i class="fa-solid fa-file-arrow-down text-cyan-400"></i> Cetak Ringkasan (PDF)
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 1: BENTO STATS GRID -->
+    <section>
+      <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+        <!-- Total Pekerjaan -->
+        <div class="glass-card glass-card-hover p-4 rounded-2xl border border-brand-border flex flex-col justify-between">
+          <div>
+            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Total Paket Pekerjaan</p>
+            <h3 id="statTotalPekerjaan" class="text-2xl sm:text-3xl font-extrabold text-white mt-1">0</h3>
+          </div>
+          <p class="text-[10px] text-cyan-400 mt-2 font-medium"><i class="fa-solid fa-boxes-stacked mr-1"></i> Aktif di Database</p>
+        </div>
+
+        <!-- Sedang Berjalan -->
+        <div class="glass-card glass-card-hover p-4 rounded-2xl border border-brand-border flex flex-col justify-between">
+          <div>
+            <p class="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Sedang Berjalan</p>
+            <h3 id="statSedangBerjalan" class="text-2xl sm:text-3xl font-extrabold text-blue-400 mt-1">0</h3>
+          </div>
+          <p class="text-[10px] text-gray-400 mt-2 font-medium"><i class="fa-solid fa-spinner fa-spin mr-1"></i> Penanganan Aktif</p>
+        </div>
+
+        <!-- Pekerjaan Selesai -->
+        <div class="glass-card glass-card-hover p-4 rounded-2xl border border-brand-border flex flex-col justify-between">
+          <div>
+            <p class="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Pekerjaan Selesai</p>
+            <h3 id="statSelesai" class="text-2xl sm:text-3xl font-extrabold text-emerald-400 mt-1">0</h3>
+          </div>
+          <p class="text-[10px] text-emerald-400/80 mt-2 font-medium"><i class="fa-solid fa-circle-check mr-1"></i> Realisasi 100%</p>
+        </div>
+
+        <!-- Keterlambatan / Risiko -->
+        <div class="glass-card glass-card-hover p-4 rounded-2xl border border-brand-border flex flex-col justify-between">
+          <div>
+            <p class="text-[10px] font-bold text-rose-400 uppercase tracking-wider">Terlambat / Risk Tinggi</p>
+            <h3 id="statTerlambat" class="text-2xl sm:text-3xl font-extrabold text-rose-400 mt-1">0</h3>
+          </div>
+          <p class="text-[10px] text-rose-400/80 mt-2 font-medium"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Deviasi &lt; -10%</p>
+        </div>
+
+        <!-- Total Nilai Kontrak -->
+        <div class="col-span-2 lg:col-span-1 glass-card glass-card-hover p-4 rounded-2xl border border-brand-border flex flex-col justify-between">
+          <div>
+            <p class="text-[10px] font-bold text-purple-400 uppercase tracking-wider">Total Nilai Kontrak</p>
+            <h3 id="statTotalNilai" class="text-lg sm:text-xl font-extrabold text-purple-300 mt-1 truncate">Rp 0</h3>
+          </div>
+          <p class="text-[10px] text-purple-400/80 mt-2 font-medium"><i class="fa-solid fa-sack-dollar mr-1"></i> Total Alokasi Anggaran</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 2: EXECUTIVE RISK & ANOMALY WATCHLIST -->
+    <section class="glass-card rounded-3xl p-5 sm:p-6 border border-brand-border space-y-4">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-brand-border/60 pb-3">
+        <div>
+          <h3 class="text-sm font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-shield-halved text-rose-400"></i> Radar Pengawasan: Pekerjaan Perlu Perhatian & Anomali
+          </h3>
+          <p class="text-[11px] text-gray-400">Daftar pekerjaan dengan deviasi tinggi, countdown kritis, atau gap penyerapan keuangan melebihi progres fisik.</p>
+        </div>
+        <span class="text-[10px] px-2.5 py-1 rounded-full bg-rose-950/80 text-rose-400 font-bold border border-rose-800/60">
+          Auto-Detection Engine
+        </span>
+      </div>
+
+      <!-- Risk Grid Cards -->
+      <div id="riskGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Filled dynamically -->
+      </div>
+    </section>
+
+    <!-- SECTION 3: CHARTS & VISUALIZATIONS -->
+    <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Chart 1: Progres Fisik vs Keuangan per Pekerjaan -->
+      <div class="glass-card rounded-3xl p-5 border border-brand-border space-y-3">
+        <div class="flex justify-between items-center border-b border-brand-border/60 pb-2">
+          <h3 class="text-xs font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-chart-column text-cyan-400"></i> Perbandingan Progres Fisik vs Keuangan (%)
+          </h3>
+          <span class="text-[10px] text-gray-400">Real-Time Sync</span>
+        </div>
+        <p class="text-[11px] text-gray-400">Grafik perbandingan antara realisasi pekerjaan fisik di lapangan dengan realisasi pencairan keuangan.</p>
+        
+        <!-- Canvas Container wrapped per requirements -->
+        <div class="chart-container">
+          <canvas id="chartFisikKeuangan"></canvas>
+        </div>
+      </div>
+
+      <!-- Chart 2: Distibusi Status Risiko & Deviasi -->
+      <div class="glass-card rounded-3xl p-5 border border-brand-border space-y-3">
+        <div class="flex justify-between items-center border-b border-brand-border/60 pb-2">
+          <h3 class="text-xs font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-chart-pie text-purple-400"></i> Distribusi Tingkat Risiko Pekerjaan
+          </h3>
+          <span class="text-[10px] text-gray-400">Kategori Deviasi</span>
+        </div>
+        <p class="text-[11px] text-gray-400">Komposisi status risiko pekerjaan dari kategori Aman (🟢), Perhatian (🟡), Waspada (🟠), hingga Risiko Tinggi (🔴).</p>
+
+        <!-- Canvas Container wrapped per requirements -->
+        <div class="chart-container">
+          <canvas id="chartStatusRisiko"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 4: MAIN WORK PACKAGES DIRECTORY TABLE -->
+    <section class="glass-card rounded-3xl p-5 sm:p-6 border border-brand-border space-y-4">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+        <div>
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-folder-tree text-cyan-400"></i> Direktori Paket Pekerjaan
+          </h3>
+          <p class="text-[11px] text-gray-400">Kelola dan pantau seluruh detail pelaksanaan kontrak pekerjaan infrastruktur.</p>
+        </div>
+
+        <!-- Search & Category Filters -->
+        <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <div class="relative flex-1 sm:w-64">
+            <input type="text" id="searchInput" oninput="filterTableData()" placeholder="Cari pekerjaan, penyedia, kode..." class="w-full pl-8 pr-3 py-2 bg-brand-bg rounded-xl text-xs text-white border border-brand-border focus:border-cyan-400 focus:outline-none">
+            <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-2.5 text-gray-500 text-xs"></i>
+          </div>
+
+          <select id="riskFilter" onchange="filterTableData()" class="px-3 py-2 bg-brand-bg rounded-xl text-xs text-gray-300 border border-brand-border focus:outline-none cursor-pointer">
+            <option value="ALL">Semua Risiko</option>
+            <option value="AMAN">🟢 Aman</option>
+            <option value="PERHATIAN">🟡 Perhatian</option>
+            <option value="WASPADA">🟠 Waspada</option>
+            <option value="RISIKO TINGGI">🔴 Risiko Tinggi</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Responsive Table -->
+      <div class="overflow-x-auto rounded-2xl border border-brand-border/60">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-brand-bg/90 text-gray-400 uppercase tracking-wider border-b border-brand-border font-semibold">
+            <tr>
+              <th class="p-3.5">Paket & Pekerjaan</th>
+              <th class="p-3.5">Penyedia Jasa</th>
+              <th class="p-3.5">Nilai Kontrak</th>
+              <th class="p-3.5">Masa & Sisa Waktu</th>
+              <th class="p-3.5">Progres Fisik vs Keuangan</th>
+              <th class="p-3.5">Deviasi</th>
+              <th class="p-3.5">Status Risiko</th>
+              <th class="p-3.5 text-center">Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="tablePekerjaanBody" class="divide-y divide-brand-border/40 font-normal">
+            <!-- Dynamic Rows -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- SECTION 5: USER MANAGEMENT CONSOLE (ADMIN ONLY VIEW) -->
+    <section id="adminUserSection" class="hidden glass-card rounded-3xl p-5 sm:p-6 border border-brand-border space-y-4">
+      <div class="flex justify-between items-center border-b border-brand-border/60 pb-3">
+        <div>
+          <h3 class="text-sm font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-users-gear text-purple-400"></i> Manajemen Pengguna Sistem (Admin Only)
+          </h3>
+          <p class="text-[11px] text-gray-400">Kelola kredensial pengguna, hak akses role, dan status keaktifan user.</p>
+        </div>
+        <button onclick="openModalTambahUser()" class="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md transition">
+          <i class="fa-solid fa-user-plus mr-1"></i> Tambah User Baru
+        </button>
+      </div>
+
+      <div class="overflow-x-auto rounded-2xl border border-brand-border/60">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-brand-bg/90 text-gray-400 uppercase tracking-wider border-b border-brand-border font-semibold">
+            <tr>
+              <th class="p-3.5">ID / Username</th>
+              <th class="p-3.5">Nama Lengkap</th>
+              <th class="p-3.5">Email</th>
+              <th class="p-3.5">Unit Kerja</th>
+              <th class="p-3.5">Role</th>
+              <th class="p-3.5">Status</th>
+              <th class="p-3.5 text-center">Opsi</th>
+            </tr>
+          </thead>
+          <tbody id="usersTableBody" class="divide-y divide-brand-border/40">
+            <!-- Dynamic User Rows -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODAL 1: WORK PACKAGE COMPREHENSIVE DETAIL WORKSPACE -->
+  <div id="modalDetail" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="glass-card w-full max-w-4xl rounded-3xl border border-brand-border p-5 sm:p-6 max-h-[90vh] overflow-y-auto space-y-6">
+      
+      <!-- Modal Header -->
+      <div class="flex justify-between items-start border-b border-brand-border pb-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <span id="detKode" class="text-[10px] font-bold px-2.5 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800">PKJ-2026-001</span>
+            <span id="detStatusBadge" class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-950 text-blue-400 border border-blue-800">BERJALAN</span>
+          </div>
+          <h3 id="detNama" class="text-base sm:text-lg font-extrabold text-white mt-1">Nama Pekerjaan</h3>
+          <p id="detPenyedia" class="text-xs text-gray-400"><i class="fa-solid fa-building mr-1"></i> PT Pelaksana Utama</p>
+        </div>
+        <button onclick="closeModal('modalDetail')" class="text-gray-400 hover:text-white p-2 text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Bento Key Metrics Summary -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="bg-brand-bg p-3 rounded-2xl border border-brand-border">
+          <p class="text-[10px] text-gray-400 uppercase font-semibold">Nilai Kontrak</p>
+          <p id="detNilai" class="text-xs sm:text-sm font-bold text-purple-300 mt-0.5">Rp 0</p>
+        </div>
+        <div class="bg-brand-bg p-3 rounded-2xl border border-brand-border">
+          <p class="text-[10px] text-gray-400 uppercase font-semibold">Progres Fisik</p>
+          <p id="detFisik" class="text-xs sm:text-sm font-bold text-cyan-400 mt-0.5">0%</p>
+        </div>
+        <div class="bg-brand-bg p-3 rounded-2xl border border-brand-border">
+          <p class="text-[10px] text-gray-400 uppercase font-semibold">Progres Keuangan</p>
+          <p id="detKeuangan" class="text-xs sm:text-sm font-bold text-emerald-400 mt-0.5">0%</p>
+        </div>
+        <div class="bg-brand-bg p-3 rounded-2xl border border-brand-border">
+          <p class="text-[10px] text-gray-400 uppercase font-semibold">Countdown Sisa Waktu</p>
+          <p id="detSisaHari" class="text-xs sm:text-sm font-bold text-amber-400 mt-0.5">0 Hari</p>
+        </div>
+      </div>
+
+      <!-- Detail Navigation Tabs -->
+      <div class="border-b border-brand-border flex gap-4 text-xs font-semibold">
+        <button id="tabBtnFisik" onclick="switchDetailTab('fisik')" class="pb-2 border-b-2 border-cyan-400 text-cyan-400">
+          <i class="fa-solid fa-person-digging mr-1"></i> Histori Fisik
+        </button>
+        <button id="tabBtnKeuangan" onclick="switchDetailTab('keuangan')" class="pb-2 text-gray-400 hover:text-white">
+          <i class="fa-solid fa-file-invoice-dollar mr-1"></i> Histori Keuangan
+        </button>
+        <button id="tabBtnAdendum" onclick="switchDetailTab('adendum')" class="pb-2 text-gray-400 hover:text-white">
+          <i class="fa-solid fa-file-signature mr-1"></i> Adendum Kontrak
+        </button>
+        <button id="tabBtnRisiko" onclick="switchDetailTab('risiko')" class="pb-2 text-gray-400 hover:text-white">
+          <i class="fa-solid fa-microscope mr-1"></i> Analisis Risiko & Fraud
+        </button>
+      </div>
+
+      <!-- TAB CONTENT 1: HISTORI FISIK -->
+      <div id="detTabFisik" class="space-y-4">
+        <div class="flex justify-between items-center">
+          <h4 class="text-xs font-bold text-gray-300">Catatan Pelaporan Progres Fisik</h4>
+          <button id="btnInputFisik" onclick="openFormInputFisik()" class="px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-xs shadow-md transition flex items-center gap-1">
+            <i class="fa-solid fa-plus"></i> Input Progres Fisik
+          </button>
+        </div>
+
+        <!-- Inline Input Form Fisik -->
+        <form id="formFisik" onsubmit="handleSaveFisik(event)" class="hidden p-4 rounded-2xl bg-brand-bg border border-brand-cyan/40 space-y-3 text-xs">
+          <h5 class="font-bold text-cyan-300">Form Laporan Progres Fisik Baru</h5>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-gray-400 mb-1">Tanggal Monitoring</label>
+              <input type="date" id="inputFisikTgl" required class="w-full px-3 py-2 bg-brand-card rounded-xl border border-brand-border text-white">
+            </div>
+            <div>
+              <label class="block text-gray-400 mb-1">Target Fisik (%)</label>
+              <input type="number" step="0.01" id="inputFisikTarget" required class="w-full px-3 py-2 bg-brand-card rounded-xl border border-brand-border text-white">
+            </div>
+            <div>
+              <label class="block text-gray-400 mb-1">Realisasi Fisik (%)</label>
+              <input type="number" step="0.01" id="inputFisikRealisasi" required class="w-full px-3 py-2 bg-brand-card rounded-xl border border-brand-border text-white">
+            </div>
+          </div>
+          <div>
+            <label class="block text-gray-400 mb-1">Keterangan / Kendala Lapangan</label>
+            <input type="text" id="inputFisikKet" placeholder="Penjelasan progres atau kendala..." class="w-full px-3 py-2 bg-brand-card rounded-xl border border-brand-border text-white">
+          </div>
+          <div class="flex justify-end gap-2 pt-1">
+            <button type="button" onclick="toggleElement('formFisik')" class="px-3 py-1.5 rounded-xl bg-gray-800 text-gray-300">Batal</button>
+            <button type="submit" class="px-3 py-1.5 rounded-xl bg-cyan-400 text-black font-bold">Simpan Progres</button>
+          </div>
+        </form>
+
+        <div id="listHistoriFisik" class="space-y-2 max-h-56 overflow-y-auto">
+          <!-- Dynamic Log Entries -->
+        </div>
+      </div>
+
+      <!-- TAB CONTENT 2: HISTORI KEUANGAN -->
+      <div id="detTabKeuangan" class="hidden space-y-4">
+        <div class="flex justify-between items-center">
+          <h4 class="text-xs font-bold text-gray-300">Catatan Pencairan & SP2D Keuangan</h4>
+          <button id="btnInputKeuangan" onclick="openFormInputKeuangan()" class="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs shadow-md transition flex items-center gap-1">
+            <i class="fa-solid fa-plus"></i> Input Pencairan Keuangan
+          </button>
+        </div>
+
+        <!-- Inline Input Form Keuangan -->
+        <form id="formKeuangan" onsubmit="handleSaveKeuangan(event)" class="hidden p-4 rounded-2xl bg-brand-bg border border-emerald-500/40 space-y-3 text-xs">
+          <h5 class="font-bold text-emerald-300">Form Pencairan Keuangan Baru</h5>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-gray-400 mb-1">Tanggal Pembayaran</label>
+              <input type="date" id="inputKeuTgl" required class="w-full px-3 py-2 bg-brand-card rounded-xl border border-brand-border text-white">
+            </div>
+            <div>
+              <label class="block text-gray-400 mb-1">Nomor SPM / SP2D</label>
+              <input type="text" id="inputKeuNomor" required placeholder="500/SP2D/2026" class="w-full px-3 py-2 bg-brand-card rounded-xl border border-brand-border text-white">
+            </div>
+            <div>
+              <label class="block text-gray-400 mb-1">Nilai Pembayaran (Rp)</label>
+              <input type="number" id="inputKeuNilai" required class="w-full px-3 py-2 bg-brand-card rounded-xl border border-brand-border text-white">
+            </div>
+          </div>
+          <div class="flex justify-end gap-2 pt-1">
+            <button type="button" onclick="toggleElement('formKeuangan')" class="px-3 py-1.5 rounded-xl bg-gray-800 text-gray-300">Batal</button>
+            <button type="submit" class="px-3 py-1.5 rounded-xl bg-emerald-400 text-black font-bold">Simpan Pembayaran</button>
+          </div>
+        </form>
+
+        <div id="listHistoriKeuangan" class="space-y-2 max-h-56 overflow-y-auto">
+          <!-- Dynamic Log Entries -->
+        </div>
+      </div>
+
+      <!-- TAB CONTENT 3: ADENDUM KONTRAK -->
+      <div id="detTabAdendum" class="hidden space-y-4">
+        <div class="flex justify-between items-center">
+          <h4 class="text-xs font-bold text-gray-300">Riwayat Adendum & Perubahan Kontrak</h4>
+          <button id="btnInputAdendum" onclick="openFormInputAdendum()" class="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md transition flex items-center gap-1">
+            <i class="fa-solid fa-plus"></i> Tambah Adendum Baru
+          </button>
+        </div>
+
+        <!-- Inline Input Form Adendum -->
+        <form id="formAdendum" onsubmit="handleSaveAdendum(event)" class="hidden p-4 rounded-2xl bg-brand-bg border border-purple-500/40 space-y-3 text-xs">
+          <h5 class="font-bold text-purple-300">Form Input Adendum Kontrak</h5>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-gray-400 mb-1">Nomor Adendum</label>
+              <input type="text" id="inputAdNomor" required placeholder="ADN-01/2026" class="w-full px-3 py-2 bg-brand-card rounded-xl border border-brand-border text-white">
+            </div>
+            <div>
+              <label class="block text-gray-400 mb-1">Tanggal Adendum</label>
+              <input type="date" id="inputAdTgl" required class="w-full px-3 py-2 bg-brand-card rounded-xl border border-brand-border text-white">
+            </div>
+            <div>
+              <label class="block text-gray-400 mb-1">Jenis Adendum</label>
+              <select id="inputAdJenis" class="w-full px-3 py-2 bg-brand-card rounded-xl border border-brand-border text-white">
+                <option value="WAKTU">Adendum Waktu</option>
+                <option value="NILAI">Adendum Nilai Kontrak</option>
+                <option value="VOLUME">Adendum Volume / Tambah Kurang</option>
+                <option value="KOMBINASI">Kombinasi (Nilai & Waktu)</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-gray-400 mb-1">Penambahan Waktu (Hari)</label>
+              <input type="number" id="inputAdHari" value="0" class="w-full px-3 py-2 bg-brand-card rounded-xl border border-brand-border text-white">
+            </div>
+            <div>
+              <label class="block text-gray-400 mb-1">Nilai Kontrak Baru (Rp, jika ada)</label>
+              <input type="number" id="inputAdNilaiBaru" value="0" class="w-full px-3 py-2 bg-brand-card rounded-xl border border-brand-border text-white">
+            </div>
+          </div>
+          <div>
+            <label class="block text-gray-400 mb-1">Alasan / Keterangan Adendum</label>
+            <input type="text" id="inputAdKet" placeholder="Justifikasi teknis adendum..." class="w-full px-3 py-2 bg-brand-card rounded-xl border border-brand-border text-white">
+          </div>
+          <div class="flex justify-end gap-2 pt-1">
+            <button type="button" onclick="toggleElement('formAdendum')" class="px-3 py-1.5 rounded-xl bg-gray-800 text-gray-300">Batal</button>
+            <button type="submit" class="px-3 py-1.5 rounded-xl bg-purple-500 text-white font-bold">Simpan Adendum</button>
+          </div>
+        </form>
+
+        <div id="listHistoriAdendum" class="space-y-2 max-h-56 overflow-y-auto">
+          <!-- Dynamic Log Entries -->
+        </div>
+      </div>
+
+      <!-- TAB CONTENT 4: RISK & FRAUD INDICATION ASSESSMENT -->
+      <div id="detTabRisiko" class="hidden space-y-4">
+        <div class="p-4 rounded-2xl bg-brand-bg border border-brand-border space-y-3">
+          <h4 class="text-xs font-bold text-amber-400 flex items-center gap-2">
+            <i class="fa-solid fa-microscope"></i> Parameter Verifikasi Risiko & Anomali Kontrak
+          </h4>
+          <p class="text-[11px] text-gray-400 leading-relaxed">
+            Catatan: Hasil analisis ini merupakan <strong class="text-gray-200">alat bantu pengawasan internal</strong> untuk menandai kebutuhan verifikasi teknis/lapangan, dan bukan merupakan prasangka hukum atau keputusan final.
+          </p>
+          <div id="riskAssessmentDetail" class="space-y-2 text-xs">
+            <!-- Dynamic Risk Breakdown -->
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL 2: TAMBAH PAKET PEKERJAAN BARU -->
+  <div id="modalTambahPekerjaan" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="glass-card w-full max-w-xl rounded-3xl border border-brand-border p-6 space-y-4">
+      <div class="flex justify-between items-center border-b border-brand-border pb-3">
+        <h3 class="text-base font-extrabold text-white flex items-center gap-2">
+          <i class="fa-solid fa-folder-plus text-cyan-400"></i> Buat Paket Pekerjaan Baru
+        </h3>
+        <button onclick="closeModal('modalTambahPekerjaan')" class="text-gray-400 hover:text-white">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form onsubmit="handleCreatePekerjaan(event)" class="space-y-3 text-xs">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-gray-400 mb-1 font-semibold">Kode Pekerjaan</label>
+            <input type="text" id="addKode" required placeholder="BM-2026-003" class="w-full px-3 py-2 bg-brand-bg rounded-xl border border-brand-border text-white">
+          </div>
+          <div>
+            <label class="block text-gray-400 mb-1 font-semibold">Paket / Bidang</label>
+            <input type="text" id="addPaket" required placeholder="Bina Marga / Cipta Karya" class="w-full px-3 py-2 bg-brand-bg rounded-xl border border-brand-border text-white">
+          </div>
+        </div>
+        <div>
+          <label class="block text-gray-400 mb-1 font-semibold">Nama Pekerjaan / Kegiatan</label>
+          <input type="text" id="addNama" required placeholder="Pembangunan Jembatan Terusan..." class="w-full px-3 py-2 bg-brand-bg rounded-xl border border-brand-border text-white">
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-gray-400 mb-1 font-semibold">Penyedia Jasa (PT/CV)</label>
+            <input type="text" id="addPenyedia" required placeholder="PT Konstruksi Utama" class="w-full px-3 py-2 bg-brand-bg rounded-xl border border-brand-border text-white">
+          </div>
+          <div>
+            <label class="block text-gray-400 mb-1 font-semibold">Nomor Kontrak</label>
+            <input type="text" id="addNomorKontrak" required placeholder="602/KONTRAK/2026" class="w-full px-3 py-2 bg-brand-bg rounded-xl border border-brand-border text-white">
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label class="block text-gray-400 mb-1 font-semibold">Nilai Kontrak (Rp)</label>
+            <input type="number" id="addNilaiKontrak" required placeholder="1500000000" class="w-full px-3 py-2 bg-brand-bg rounded-xl border border-brand-border text-white">
+          </div>
+          <div>
+            <label class="block text-gray-400 mb-1 font-semibold">Tanggal Mulai SPMK</label>
+            <input type="date" id="addTanggalMulai" required class="w-full px-3 py-2 bg-brand-bg rounded-xl border border-brand-border text-white">
+          </div>
+          <div>
+            <label class="block text-gray-400 mb-1 font-semibold">Masa Pelaksanaan (Hari)</label>
+            <input type="number" id="addMasaPelaksanaan" required placeholder="120" class="w-full px-3 py-2 bg-brand-bg rounded-xl border border-brand-border text-white">
+          </div>
+        </div>
+        <div class="pt-3 flex justify-end gap-2 border-t border-brand-border">
+          <button type="button" onclick="closeModal('modalTambahPekerjaan')" class="px-4 py-2 rounded-xl bg-gray-800 text-gray-300">Batal</button>
+          <button type="submit" class="px-4 py-2 rounded-xl bg-cyan-400 text-black font-bold shadow-lg shadow-cyan-500/20">Simpan Pekerjaan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 3: TAMBAH USER BARU (ADMIN ONLY) -->
+  <div id="modalTambahUser" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="glass-card w-full max-w-md rounded-3xl border border-brand-border p-6 space-y-4">
+      <div class="flex justify-between items-center border-b border-brand-border pb-3">
+        <h3 class="text-base font-extrabold text-white flex items-center gap-2">
+          <i class="fa-solid fa-user-plus text-purple-400"></i> Tambah User Baru
+        </h3>
+        <button onclick="closeModal('modalTambahUser')" class="text-gray-400 hover:text-white">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form onsubmit="handleCreateUser(event)" class="space-y-3 text-xs">
+        <div>
+          <label class="block text-gray-400 mb-1 font-semibold">Username</label>
+          <input type="text" id="addUsername" required placeholder="pengawas01" class="w-full px-3 py-2 bg-brand-bg rounded-xl border border-brand-border text-white">
+        </div>
+        <div>
+          <label class="block text-gray-400 mb-1 font-semibold">Nama Lengkap</label>
+          <input type="text" id="addNamaUser" required placeholder="Budi Santoso, ST" class="w-full px-3 py-2 bg-brand-bg rounded-xl border border-brand-border text-white">
+        </div>
+        <div>
+          <label class="block text-gray-400 mb-1 font-semibold">Email</label>
+          <input type="email" id="addEmailUser" required placeholder="budi@dinas.go.id" class="w-full px-3 py-2 bg-brand-bg rounded-xl border border-brand-border text-white">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-gray-400 mb-1 font-semibold">Role</label>
+            <select id="addRoleUser" class="w-full px-3 py-2 bg-brand-bg rounded-xl border border-brand-border text-white">
+              <option value="USER">USER / Pengawas</option>
+              <option value="ADMIN">ADMIN</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-gray-400 mb-1 font-semibold">Unit Kerja</label>
+            <input type="text" id="addUnitKerja" required placeholder="Bidang Bina Marga" class="w-full px-3 py-2 bg-brand-bg rounded-xl border border-brand-border text-white">
+          </div>
+        </div>
+        <div class="pt-3 flex justify-end gap-2 border-t border-brand-border">
+          <button type="button" onclick="closeModal('modalTambahUser')" class="px-4 py-2 rounded-xl bg-gray-800 text-gray-300">Batal</button>
+          <button type="submit" class="px-4 py-2 rounded-xl bg-purple-600 text-white font-bold shadow-lg shadow-purple-500/20">Buat User</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 4: BACKEND CODE.GS & SPREADSHEET SETUP GENERATOR -->
+  <div id="modalGasCode" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="glass-card w-full max-w-3xl rounded-3xl border border-brand-border p-6 max-h-[90vh] overflow-y-auto space-y-4">
+      <div class="flex justify-between items-center border-b border-brand-border pb-3">
+        <div>
+          <h3 class="text-base font-extrabold text-white flex items-center gap-2">
+            <i class="fa-solid fa-server text-purple-400"></i> Backend Code.gs & Google Sheets DB Installer
+          </h3>
+          <p class="text-[11px] text-gray-400">Salin kode di bawah ini ke Editor Apps Script untuk menghubungkan aplikasi dengan Google Sheets secara permanen.</p>
+        </div>
+        <button onclick="closeModal('modalGasCode')" class="text-gray-400 hover:text-white">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="space-y-2 text-xs">
+        <div class="flex justify-between items-center">
+          <span class="font-bold text-cyan-300">File: Code.gs (Server-Side)</span>
+          <button onclick="copyGasCode()" class="px-3 py-1 rounded-lg bg-cyan-500 text-black font-bold text-[11px] hover:bg-cyan-400">
+            <i class="fa-solid fa-copy mr-1"></i> Salin Kode Code.gs
+          </button>
+        </div>
+        <textarea id="gasCodeTextarea" readonly class="w-full h-64 bg-black/90 p-3 rounded-xl border border-brand-border font-mono text-[11px] text-emerald-400 focus:outline-none"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="glass-card border-t border-brand-border/40 py-5 mt-8 text-center text-[11px] text-gray-500">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center gap-2">
+      <p>SIMON-PRO &copy; 2026. Sistem Informasi Monitoring Progres Fisik & Keuangan Pekerjaan.</p>
+      <p class="text-cyan-400/80 font-medium"><i class="fa-solid fa-bolt mr-1"></i> Powered by Google Apps Script & Tailwind CSS</p>
+    </div>
+  </footer>
+
+  <!-- APPLICATION LOGIC & INTERACTION ENGINE -->
+  <script>
+    // GLOBAL APPLICATION STATE
+    let currentRole = 'PUBLIC'; // 'PUBLIC' | 'USER' | 'ADMIN'
+    let selectedPekerjaanId = null;
+    let chartInstanceFisikKeuangan = null;
+    let chartInstanceStatusRisiko = null;
+
+    // SIMULATED BASE DATABASE (Relational Google Sheets Structure)
+    let database = {
+      pekerjaan: [
+        {
+          pekerjaan_id: 'PKJ-2026-0001',
+          kode_pekerjaan: 'BM-01',
+          nama_pekerjaan: 'Pembangunan Jembatan Utama Kota',
+          paket_pekerjaan: 'Bina Marga',
+          penyedia: 'PT Konstruksi Mandiri Jaya',
+          nomor_kontrak: '602/KONTRAK/BM/2026',
+          nilai_kontrak: 2500000000,
+          tanggal_mulai: '2026-06-01',
+          masa_pelaksanaan_hari: 120,
+          status: 'BERJALAN',
+          progres_fisik_terakhir: 35.0,
+          progres_keuangan_terakhir: 55.0,
+          target_fisik: 45.0,
+          deviasi_fisik: -10.0,
+          keterangan: 'Pekerjaan terhambat cuaca hujan ekstrem.'
+        },
+        {
+          pekerjaan_id: 'PKJ-2026-0002',
+          kode_pekerjaan: 'CK-02',
+          nama_pekerjaan: 'Rehabilitasi Gedung Olahraga Pemuda',
+          paket_pekerjaan: 'Cipta Karya',
+          penyedia: 'CV Karya Bersama',
+          nomor_kontrak: '603/KONTRAK/CK/2026',
+          nilai_kontrak: 850000000,
+          tanggal_mulai: '2026-07-15',
+          masa_pelaksanaan_hari: 90,
+          status: 'BERJALAN',
+          progres_fisik_terakhir: 78.0,
+          progres_keuangan_terakhir: 60.0,
+          target_fisik: 70.0,
+          deviasi_fisik: 8.0,
+          keterangan: 'Progres melampaui target fisik.'
+        },
+        {
+          pekerjaan_id: 'PKJ-2026-0003',
+          kode_pekerjaan: 'SDA-03',
+          nama_pekerjaan: 'Normalisasi Tanggul Sungai Melati',
+          paket_pekerjaan: 'Sumber Daya Air',
+          penyedia: 'PT Tirta Perkasa',
+          nomor_kontrak: '604/KONTRAK/SDA/2026',
+          nilai_kontrak: 4200000000,
+          tanggal_mulai: '2026-05-10',
+          masa_pelaksanaan_hari: 150,
+          status: 'BERJALAN',
+          progres_fisik_terakhir: 40.0,
+          progres_keuangan_terakhir: 65.0,
+          target_fisik: 60.0,
+          deviasi_fisik: -20.0,
+          keterangan: 'Deviasi tinggi dan penyerapan keuangan mendahului fisik.'
+        }
+      ],
+      progres_fisik: [
+        { progres_id: 'PRF-01', pekerjaan_id: 'PKJ-2026-0001', tanggal: '2026-07-01', target: 20.0, realisasi: 18.0, deviasi: -2.0, keterangan: 'Awal penggalian struktur jembatan.' },
+        { progres_id: 'PRF-02', pekerjaan_id: 'PKJ-2026-0001', tanggal: '2026-08-01', target: 45.0, realisasi: 35.0, deviasi: -10.0, keterangan: 'Pemasangan tiang pancang terhambat.' },
+        { progres_id: 'PRF-03', pekerjaan_id: 'PKJ-2026-0002', tanggal: '2026-08-15', target: 70.0, realisasi: 78.0, deviasi: 8.0, keterangan: 'Atap dan struktur rangka selesai.' },
+        { progres_id: 'PRF-04', pekerjaan_id: 'PKJ-2026-0003', tanggal: '2026-08-20', target: 60.0, realisasi: 40.0, deviasi: -20.0, keterangan: 'Alat berat terkendala akses lokasi.' }
+      ],
+      progres_keuangan: [
+        { keuangan_id: 'PRK-01', pekerjaan_id: 'PKJ-2026-0001', tanggal: '2026-06-15', nomor_pembayaran: 'SP2D-001', nilai: 1375000000, persentase: 55.0, keterangan: 'Pencairan Termyn 1 (55%)' },
+        { keuangan_id: 'PRK-02', pekerjaan_id: 'PKJ-2026-0002', tanggal: '2026-08-01', nomor_pembayaran: 'SP2D-002', nilai: 510000000, persentase: 60.0, keterangan: 'Pencairan Uang Muka & Termyn I' },
+        { keuangan_id: 'PRK-03', pekerjaan_id: 'PKJ-2026-0003', tanggal: '2026-07-20', nomor_pembayaran: 'SP2D-003', nilai: 2730000000, persentase: 65.0, keterangan: 'Pencairan Termyn II' }
+      ],
+      adendum: [
+        { adendum_id: 'ADN-01', pekerjaan_id: 'PKJ-2026-0001', nomor_adendum: '602/ADD-01/2026', tanggal: '2026-07-25', jenis: 'WAKTU', tambah_hari: 15, nilai_setelah: 2500000000, keterangan: 'Penambahan waktu akibat banjir tanah retak.' }
+      ],
+      users: [
+        { user_id: 'USR-01', username: 'admin', nama: 'Administrator Utama', email: 'admin@dinas.go.id', role: 'ADMIN', status: 'AKTIF', unit_kerja: 'Dinas PU' },
+        { user_id: 'USR-02', username: 'pengawas1', nama: 'Irfan Hendrawan, ST', email: 'irfan@dinas.go.id', role: 'USER', status: 'AKTIF', unit_kerja: 'Bidang Bina Marga' }
+      ]
+    };
+
+    // INITIALIZATION ON DOM LOADED
+    window.addEventListener('DOMContentLoaded', () => {
+      calculateAllContractDates();
+      renderAllViews();
+      initCharts();
+      populateGasCodeModalText();
+    });
+
+    // CONTRACT DATE & RISK CALCULATOR ENGINE
+    function calculateAllContractDates() {
+      const today = new Date('2026-09-18'); // Simulated context date
+
+      database.pekerjaan.forEach(p => {
+        // Calculate Total Duration including Addendums
+        let totalExtraDays = 0;
+        let revisedNilai = p.nilai_kontrak;
+
+        database.adendum.filter(a => a.pekerjaan_id === p.pekerjaan_id).forEach(a => {
+          totalExtraDays += Number(a.tambah_hari || 0);
+          if (Number(a.nilai_setelah) > 0) revisedNilai = Number(a.nilai_setelah);
+        });
+
+        p.nilai_kontrak_revised = revisedNilai;
+        const totalDurationDays = Number(p.masa_pelaksanaan_hari) + totalExtraDays;
+        
+        const startDate = new Date(p.tanggal_mulai);
+        const endDate = new Date(startDate.getTime() + (totalDurationDays * 24 * 60 * 60 * 1000));
+        p.tanggal_selesai = endDate.toISOString().split('T')[0];
+
+        // Sisa Hari Calculation
+        const diffTime = endDate.getTime() - today.getTime();
+        const sisaHari = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        p.sisa_hari = sisaHari;
+
+        // Risk Level Engine Logic
+        const deviasi = p.deviasi_fisik;
+        const gapKeuanganFisik = p.progres_keuangan_terakhir - p.progres_fisik_terakhir;
+
+        let risk = 'AMAN';
+        if (sisaHari < 0 || deviasi <= -10 || gapKeuanganFisik > 20) {
+          risk = 'RISIKO TINGGI';
+        } else if ((sisaHari <= 14 && sisaHari > 0) || (deviasi <= -5 && deviasi > -10) || gapKeuanganFisik > 10) {
+          risk = 'WASPADA';
+        } else if ((sisaHari <= 30 && sisaHari > 14) || (deviasi < 0 && deviasi > -5)) {
+          risk = 'PERHATIAN';
+        }
+        p.status_risiko = risk;
+      });
+    }
+
+    // MAIN VIEW RENDERER
+    function renderAllViews() {
+      renderBentoStats();
+      renderRiskWatchlist();
+      renderTablePekerjaan();
+      renderUserManagementTable();
+      renderNotificationDrawer();
+      updateCharts();
+    }
+
+    // RENDER BENTO STATS
+    function renderBentoStats() {
+      const list = database.pekerjaan;
+      const totalCount = list.length;
+      const berjalanCount = list.filter(p => p.status === 'BERJALAN').length;
+      const selesaiCount = list.filter(p => p.progres_fisik_terakhir >= 100).length;
+      const terlambatCount = list.filter(p => p.status_risiko === 'RISIKO TINGGI' || p.sisa_hari < 0).length;
+      const totalNilai = list.reduce((acc, curr) => acc + (curr.nilai_kontrak_revised || curr.nilai_kontrak), 0);
+
+      document.getElementById('statTotalPekerjaan').innerText = totalCount;
+      document.getElementById('statSedangBerjalan').innerText = berjalanCount;
+      document.getElementById('statSelesai').innerText = selesaiCount;
+      document.getElementById('statTerlambat').innerText = terlambatCount;
+      document.getElementById('statTotalNilai').innerText = formatRp(totalNilai);
+    }
+
+    // RENDER RISK WATCHLIST CARDS
+    function renderRiskWatchlist() {
+      const container = document.getElementById('riskGrid');
+      const highRiskItems = database.pekerjaan.filter(p => p.status_risiko === 'RISIKO TINGGI' || p.status_risiko === 'WASPADA' || p.status_risiko === 'PERHATIAN');
+
+      if (highRiskItems.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full p-6 text-center text-xs text-gray-500 bg-brand-bg rounded-2xl border border-brand-border">
+            🟢 Seluruh paket pekerjaan saat ini berjalan dalam kondisi aman tanpa deviasi kritis.
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = highRiskItems.map(p => {
+        const gapKeu = (p.progres_keuangan_terakhir - p.progres_fisik_terakhir).toFixed(1);
+        const isAnomaly = gapKeu > 15;
+
+        return `
+          <div class="p-4 rounded-2xl glass-card border border-brand-border space-y-3 relative overflow-hidden">
+            <div class="flex justify-between items-start gap-2">
+              <div>
+                <span class="text-[9px] font-bold px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800">${p.kode_pekerjaan}</span>
+                <h4 class="text-xs font-bold text-white mt-1 line-clamp-1">${p.nama_pekerjaan}</h4>
+                <p class="text-[10px] text-gray-400">${p.penyedia}</p>
+              </div>
+              ${getRiskBadgeHTML(p.status_risiko)}
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 text-[10px] bg-brand-bg p-2 rounded-xl border border-brand-border">
+              <div>
+                <span class="text-gray-400">Deviasi Fisik:</span>
+                <p class="font-bold ${p.deviasi_fisik < 0 ? 'text-rose-400' : 'text-emerald-400'}">${p.deviasi_fisik}%</p>
+              </div>
+              <div>
+                <span class="text-gray-400">Countdown:</span>
+                <p class="font-bold text-amber-400">${p.sisa_hari} Hari</p>
+              </div>
+            </div>
+
+            ${isAnomaly ? `
+              <div class="p-2 rounded-xl bg-rose-950/60 border border-rose-800/50 text-[10px] text-rose-300 flex items-center gap-1.5">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <span>Anomali Keuangan: Selisih Keu vs Fisik (+${gapKeu}%)</span>
+              </div>
+            ` : ''}
+
+            <button onclick="openDetailModal('${p.pekerjaan_id}')" class="w-full py-1.5 rounded-xl bg-brand-border/60 hover:bg-brand-border text-xs font-semibold text-gray-200 transition">
+              <i class="fa-solid fa-microscope mr-1"></i> Inspeksi Detail
+            </button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // RENDER MAIN WORK PACKAGES TABLE
+    function renderTablePekerjaan() {
+      const tbody = document.getElementById('tablePekerjaanBody');
+      const searchVal = document.getElementById('searchInput').value.toLowerCase();
+      const riskVal = document.getElementById('riskFilter').value;
+
+      const filtered = database.pekerjaan.filter(p => {
+        const matchesSearch = p.nama_pekerjaan.toLowerCase().includes(searchVal) ||
+                              p.penyedia.toLowerCase().includes(searchVal) ||
+                              p.kode_pekerjaan.toLowerCase().includes(searchVal);
+        const matchesRisk = riskVal === 'ALL' || p.status_risiko === riskVal;
+        return matchesSearch && matchesRisk;
+      });
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-xs text-gray-500">Tidak ada paket pekerjaan yang sesuai filter.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(p => `
+        <tr class="hover:bg-brand-card/60 transition">
+          <td class="p-3.5">
+            <p class="font-bold text-white text-xs">${p.nama_pekerjaan}</p>
+            <p class="text-[10px] text-cyan-400">${p.kode_pekerjaan} • ${p.paket_pekerjaan}</p>
+          </td>
+          <td class="p-3.5 text-gray-300 text-xs">${p.penyedia}</td>
+          <td class="p-3.5 font-bold text-purple-300 text-xs">${formatRp(p.nilai_kontrak_revised || p.nilai_kontrak)}</td>
+          <td class="p-3.5">
+            <p class="text-xs text-gray-200">${p.masa_pelaksanaan_hari} Hari</p>
+            <p class="text-[10px] font-bold text-amber-400">Sisa ${p.sisa_hari} Hari</p>
+          </td>
+          <td class="p-3.5 w-44">
+            <div class="space-y-1">
+              <div class="flex justify-between text-[10px]">
+                <span class="text-cyan-400">Fisik: ${p.progres_fisik_terakhir}%</span>
+                <span class="text-emerald-400">Keu: ${p.progres_keuangan_terakhir}%</span>
+              </div>
+              <div class="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden flex">
+                <div class="bg-cyan-400 h-full" style="width: ${p.progres_fisik_terakhir}%"></div>
+              </div>
+            </div>
+          </td>
+          <td class="p-3.5 font-bold ${p.deviasi_fisik < 0 ? 'text-rose-400' : 'text-emerald-400'}">
+            ${p.deviasi_fisik}%
+          </td>
+          <td class="p-3.5">${getRiskBadgeHTML(p.status_risiko)}</td>
+          <td class="p-3.5 text-center">
+            <button onclick="openDetailModal('${p.pekerjaan_id}')" class="px-2.5 py-1 rounded-xl bg-brand-border/60 hover:bg-brand-border text-cyan-300 font-semibold text-xs transition">
+              <i class="fa-solid fa-eye mr-1"></i> Detail
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // RENDER USER MANAGEMENT TABLE
+    function renderUserManagementTable() {
+      const tbody = document.getElementById('usersTableBody');
+      tbody.innerHTML = database.users.map(u => `
+        <tr class="hover:bg-brand-card/60 transition">
+          <td class="p-3.5">
+            <p class="font-bold text-white">${u.username}</p>
+            <p class="text-[10px] text-gray-500">${u.user_id}</p>
+          </td>
+          <td class="p-3.5 text-gray-300">${u.nama}</td>
+          <td class="p-3.5 text-gray-400">${u.email}</td>
+          <td class="p-3.5 text-gray-300">${u.unit_kerja}</td>
+          <td class="p-3.5 font-bold ${u.role === 'ADMIN' ? 'text-purple-400' : 'text-cyan-400'}">${u.role}</td>
+          <td class="p-3.5">
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${u.status === 'AKTIF' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-rose-950 text-rose-400 border border-rose-800'}">
+              ${u.status}
+            </span>
+          </td>
+          <td class="p-3.5 text-center">
+            <button onclick="toggleUserStatus('${u.user_id}')" class="px-2 py-1 rounded-lg bg-brand-border/60 hover:bg-brand-border text-xs text-gray-300">
+              <i class="fa-solid fa-rotate mr-1"></i> Toggle Status
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // RENDER NOTIFICATIONS DRAWER
+    function renderNotificationDrawer() {
+      const container = document.getElementById('notifContainer');
+      const notifs = [];
+
+      database.pekerjaan.forEach(p => {
+        if (p.sisa_hari <= 14 && p.sisa_hari > 0) {
+          notifs.push({ title: `🔴 H-${p.sisa_hari} Batas Akhir Pekerjaan`, desc: `${p.nama_pekerjaan} tersisa ${p.sisa_hari} hari lagi.` });
+        }
+        if (p.deviasi_fisik <= -10) {
+          notifs.push({ title: `⚠️ Deviasi Fisik Tinggi (${p.deviasi_fisik}%)`, desc: `${p.nama_pekerjaan} mengalami keterlambatan fisik teridentifikasi.` });
+        }
+        if ((p.progres_keuangan_terakhir - p.progres_fisik_terakhir) > 15) {
+          notifs.push({ title: `⚡ Anomali Keuangan vs Fisik`, desc: `Pencairan keuangan ${p.nama_pekerjaan} mendahului fisik > 15%.` });
+        }
+      });
+
+      document.getElementById('notifBadge').innerText = notifs.length;
+
+      if (notifs.length === 0) {
+        container.innerHTML = `<p class="p-3 text-center text-gray-500">Tidak ada notifikasi kritis.</p>`;
+        return;
+      }
+
+      container.innerHTML = notifs.map(n => `
+        <div class="p-2.5 rounded-xl bg-brand-bg border border-brand-border space-y-1">
+          <p class="font-bold text-amber-300">${n.title}</p>
+          <p class="text-[10px] text-gray-400">${n.desc}</p>
+        </div>
+      `).join('');
+    }
+
+    // CHART INITIALIZATION & UPDATE (Chart.js)
+    function initCharts() {
+      // Chart 1: Progres Fisik vs Keuangan
+      const ctx1 = document.getElementById('chartFisikKeuangan').getContext('2d');
+      chartInstanceFisikKeuangan = new Chart(ctx1, {
+        type: 'bar',
+        data: {
+          labels: database.pekerjaan.map(p => p.kode_pekerjaan),
+          datasets: [
+            {
+              label: 'Progres Fisik (%)',
+              data: database.pekerjaan.map(p => p.progres_fisik_terakhir),
+              backgroundColor: '#00f2fe',
+              borderRadius: 6
+            },
+            {
+              label: 'Progres Keuangan (%)',
+              data: database.pekerjaan.map(p => p.progres_keuangan_terakhir),
+              backgroundColor: '#10b981',
+              borderRadius: 6
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: '#9ca3af', font: { size: 10 } } },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  let label = context.dataset.label || '';
+                  if (label) label += ': ';
+                  if (context.parsed.y !== null) label += context.parsed.y + '%';
+                  return label.length > 16 ? label.substring(0, 16) + '...' : label;
+                }
+              }
+            }
+          },
+          scales: {
+            x: { ticks: { color: '#9ca3af', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+            y: { ticks: { color: '#9ca3af', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' }, max: 100 }
+          }
+        }
+      });
+
+      // Chart 2: Status Risiko
+      const ctx2 = document.getElementById('chartStatusRisiko').getContext('2d');
+      chartInstanceStatusRisiko = new Chart(ctx2, {
+        type: 'doughnut',
+        data: {
+          labels: ['Aman', 'Perhatian', 'Waspada', 'Risiko Tinggi'],
+          datasets: [{
+            data: [0, 0, 0, 0],
+            backgroundColor: ['#10b981', '#f59e0b', '#f97316', '#ef4444'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { color: '#9ca3af', font: { size: 10 } } }
+          }
+        }
+      });
+
+      updateCharts();
+    }
+
+    function updateCharts() {
+      if (!chartInstanceFisikKeuangan || !chartInstanceStatusRisiko) return;
+
+      // Update Chart 1
+      chartInstanceFisikKeuangan.data.labels = database.pekerjaan.map(p => p.kode_pekerjaan);
+      chartInstanceFisikKeuangan.data.datasets[0].data = database.pekerjaan.map(p => p.progres_fisik_terakhir);
+      chartInstanceFisikKeuangan.data.datasets[1].data = database.pekerjaan.map(p => p.progres_keuangan_terakhir);
+      chartInstanceFisikKeuangan.update();
+
+      // Update Chart 2
+      const list = database.pekerjaan;
+      const aman = list.filter(p => p.status_risiko === 'AMAN').length;
+      const perhatian = list.filter(p => p.status_risiko === 'PERHATIAN').length;
+      const waspada = list.filter(p => p.status_risiko === 'WASPADA').length;
+      const tinggi = list.filter(p => p.status_risiko === 'RISIKO TINGGI').length;
+
+      chartInstanceStatusRisiko.data.datasets[0].data = [aman, perhatian, waspada, tinggi];
+      chartInstanceStatusRisiko.update();
+    }
+
+    // DETAIL MODAL DRILL-DOWN ENGINE
+    function openDetailModal(pekerjaanId) {
+      selectedPekerjaanId = pekerjaanId;
+      const master = database.pekerjaan.find(p => p.pekerjaan_id === pekerjaanId);
+      if (!master) return;
+
+      document.getElementById('detKode').innerText = master.kode_pekerjaan;
+      document.getElementById('detNama').innerText = master.nama_pekerjaan;
+      document.getElementById('detPenyedia').innerHTML = `<i class="fa-solid fa-building mr-1"></i> ${master.penyedia}`;
+      document.getElementById('detStatusBadge').innerText = master.status;
+      document.getElementById('detNilai').innerText = formatRp(master.nilai_kontrak_revised || master.nilai_kontrak);
+      document.getElementById('detFisik').innerText = master.progres_fisik_terakhir + '%';
+      document.getElementById('detKeuangan').innerText = master.progres_keuangan_terakhir + '%';
+      document.getElementById('detSisaHari').innerText = master.sisa_hari + ' Hari';
+
+      renderHistoriFisikLog(pekerjaanId);
+      renderHistoriKeuanganLog(pekerjaanId);
+      renderHistoriAdendumLog(pekerjaanId);
+      renderRiskAssessmentDetail(master);
+
+      switchDetailTab('fisik');
+      document.getElementById('modalDetail').classList.remove('hidden');
+    }
+
+    function renderHistoriFisikLog(pekerjaanId) {
+      const container = document.getElementById('listHistoriFisik');
+      const list = database.progres_fisik.filter(f => f.pekerjaan_id === pekerjaanId);
+
+      if (list.length === 0) {
+        container.innerHTML = `<p class="text-xs text-gray-500">Belum ada catatan progres fisik.</p>`;
+        return;
+      }
+
+      container.innerHTML = list.map(item => `
+        <div class="p-2.5 bg-brand-bg rounded-xl border border-brand-border flex justify-between items-center text-xs">
+          <div>
+            <p class="font-bold text-white">${item.tanggal} — Realisasi: <span class="text-cyan-400">${item.realisasi}%</span> (Target ${item.target}%)</p>
+            <p class="text-[10px] text-gray-400">${item.keterangan || 'Tanpa keterangan'}</p>
+          </div>
+          <span class="font-bold ${item.deviasi >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${item.deviasi}%</span>
+        </div>
+      `).join('');
+    }
+
+    function renderHistoriKeuanganLog(pekerjaanId) {
+      const container = document.getElementById('listHistoriKeuangan');
+      const list = database.progres_keuangan.filter(k => k.pekerjaan_id === pekerjaanId);
+
+      if (list.length === 0) {
+        container.innerHTML = `<p class="text-xs text-gray-500">Belum ada catatan pencairan keuangan.</p>`;
+        return;
+      }
+
+      container.innerHTML = list.map(item => `
+        <div class="p-2.5 bg-brand-bg rounded-xl border border-brand-border flex justify-between items-center text-xs">
+          <div>
+            <p class="font-bold text-white">${item.tanggal} — ${item.nomor_pembayaran}</p>
+            <p class="text-[10px] text-gray-400">${item.keterangan}</p>
+          </div>
+          <div class="text-right">
+            <p class="font-bold text-emerald-400">${formatRp(item.nilai)}</p>
+            <p class="text-[10px] text-gray-400">Kumulatif: ${item.persentase}%</p>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderHistoriAdendumLog(pekerjaanId) {
+      const container = document.getElementById('listHistoriAdendum');
+      const list = database.adendum.filter(a => a.pekerjaan_id === pekerjaanId);
+
+      if (list.length === 0) {
+        container.innerHTML = `<p class="text-xs text-gray-500">Belum ada riwayat adendum kontrak.</p>`;
+        return;
+      }
+
+      container.innerHTML = list.map(item => `
+        <div class="p-2.5 bg-brand-bg rounded-xl border border-brand-border text-xs space-y-1">
+          <div class="flex justify-between font-bold text-purple-300">
+            <span>${item.nomor_adendum} (${item.jenis})</span>
+            <span>${item.tanggal}</span>
+          </div>
+          <p class="text-[10px] text-gray-300">Tambah Waktu: +${item.tambah_hari} Hari | Nilai Setelah: ${formatRp(item.nilai_setelah)}</p>
+          <p class="text-[10px] text-gray-400">${item.keterangan}</p>
+        </div>
+      `).join('');
+    }
+
+    function renderRiskAssessmentDetail(master) {
+      const container = document.getElementById('riskAssessmentDetail');
+      const gapKeu = (master.progres_keuangan_terakhir - master.progres_fisik_terakhir).toFixed(1);
+
+      container.innerHTML = `
+        <div class="space-y-2">
+          <div class="p-2 rounded-xl bg-brand-card flex justify-between items-center">
+            <span>Tingkat Deviasi Fisik (${master.deviasi_fisik}%):</span>
+            <span class="font-bold ${master.deviasi_fisik < -10 ? 'text-rose-400' : 'text-emerald-400'}">
+              ${master.deviasi_fisik < -10 ? '⚠️ Deviasi Kritis (Sangat Terlambat)' : '🟢 Deviasi Wajar'}
+            </span>
+          </div>
+
+          <div class="p-2 rounded-xl bg-brand-card flex justify-between items-center">
+            <span>Gap Keuangan vs Fisik (+${gapKeu}%):</span>
+            <span class="font-bold ${gapKeu > 15 ? 'text-rose-400' : 'text-emerald-400'}">
+              ${gapKeu > 15 ? '⚠️ Indikasi Anomali Pencairan Mendahului Fisik' : '🟢 Proporsional'}
+            </span>
+          </div>
+
+          <div class="p-2 rounded-xl bg-brand-card flex justify-between items-center">
+            <span>Status Countdown (${master.sisa_hari} Hari):</span>
+            <span class="font-bold ${master.sisa_hari < 14 ? 'text-amber-400' : 'text-emerald-400'}">
+              ${master.sisa_hari < 14 ? '⚠️ Memasuki Masa Kritis Deadline' : '🟢 Waktu Pelaksanaan Cukup'}
+            </span>
+          </div>
+        </div>
+      `;
+    }
+
+    // FORM HANDLERS & SIMULATED CRUD
+    function handleCreatePekerjaan(e) {
+      e.preventDefault();
+      const newId = 'PKJ-2026-' + String(database.pekerjaan.length + 1).padStart(4, '0');
+
+      const newItem = {
+        pekerjaan_id: newId,
+        kode_pekerjaan: document.getElementById('addKode').value,
+        paket_pekerjaan: document.getElementById('addPaket').value,
+        nama_pekerjaan: document.getElementById('addNama').value,
+        penyedia: document.getElementById('addPenyedia').value,
+        nomor_kontrak: document.getElementById('addNomorKontrak').value,
+        nilai_kontrak: Number(document.getElementById('addNilaiKontrak').value),
+        tanggal_mulai: document.getElementById('addTanggalMulai').value,
+        masa_pelaksanaan_hari: Number(document.getElementById('addMasaPelaksanaan').value),
+        status: 'BERJALAN',
+        progres_fisik_terakhir: 0,
+        progres_keuangan_terakhir: 0,
+        target_fisik: 0,
+        deviasi_fisik: 0,
+        keterangan: 'Paket pekerjaan baru ditambahkan.'
+      };
+
+      database.pekerjaan.push(newItem);
+      calculateAllContractDates();
+      renderAllViews();
+      closeModal('modalTambahPekerjaan');
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Berhasil Disimpan!',
+        text: 'Paket pekerjaan baru telah ditambahkan ke database.',
+        background: '#1a1d29',
+        color: '#fff',
+        confirmButtonColor: '#00f2fe'
+      });
+    }
+
+    function handleSaveFisik(e) {
+      e.preventDefault();
+      const target = Number(document.getElementById('inputFisikTarget').value);
+      const realisasi = Number(document.getElementById('inputFisikRealisasi').value);
+      const deviasi = (realisasi - target).toFixed(1);
+
+      database.progres_fisik.push({
+        progres_id: 'PRF-' + Date.now(),
+        pekerjaan_id: selectedPekerjaanId,
+        tanggal: document.getElementById('inputFisikTgl').value,
+        target: target,
+        realisasi: realisasi,
+        deviasi: Number(deviasi),
+        keterangan: document.getElementById('inputFisikKet').value
+      });
+
+      // Update Master Pekerjaan
+      const master = database.pekerjaan.find(p => p.pekerjaan_id === selectedPekerjaanId);
+      if (master) {
+        master.progres_fisik_terakhir = realisasi;
+        master.target_fisik = target;
+        master.deviasi_fisik = Number(deviasi);
+      }
+
+      calculateAllContractDates();
+      renderAllViews();
+      openDetailModal(selectedPekerjaanId);
+      toggleElement('formFisik');
+
+      Swal.fire({ icon: 'success', title: 'Progres Fisik Diperbarui!', background: '#1a1d29', color: '#fff', timer: 1200, showConfirmButton: false });
+    }
+
+    function handleSaveKeuangan(e) {
+      e.preventDefault();
+      const master = database.pekerjaan.find(p => p.pekerjaan_id === selectedPekerjaanId);
+      const nilai = Number(document.getElementById('inputKeuNilai').value);
+      const persentase = ((nilai / (master.nilai_kontrak_revised || master.nilai_kontrak)) * 100).toFixed(1);
+
+      database.progres_keuangan.push({
+        keuangan_id: 'PRK-' + Date.now(),
+        pekerjaan_id: selectedPekerjaanId,
+        tanggal: document.getElementById('inputKeuTgl').value,
+        nomor_pembayaran: document.getElementById('inputKeuNomor').value,
+        nilai: nilai,
+        persentase: Number(persentase),
+        keterangan: 'Pencairan SP2D'
+      });
+
+      if (master) {
+        master.progres_keuangan_terakhir = Number(persentase);
+      }
+
+      calculateAllContractDates();
+      renderAllViews();
+      openDetailModal(selectedPekerjaanId);
+      toggleElement('formKeuangan');
+
+      Swal.fire({ icon: 'success', title: 'Pencairan Keuangan Disimpan!', background: '#1a1d29', color: '#fff', timer: 1200, showConfirmButton: false });
+    }
+
+    function handleSaveAdendum(e) {
+      e.preventDefault();
+      database.adendum.push({
+        adendum_id: 'ADN-' + Date.now(),
+        pekerjaan_id: selectedPekerjaanId,
+        nomor_adendum: document.getElementById('inputAdNomor').value,
+        tanggal: document.getElementById('inputAdTgl').value,
+        jenis: document.getElementById('inputAdJenis').value,
+        tambah_hari: Number(document.getElementById('inputAdHari').value),
+        nilai_setelah: Number(document.getElementById('inputAdNilaiBaru').value),
+        keterangan: document.getElementById('inputAdKet').value
+      });
+
+      calculateAllContractDates();
+      renderAllViews();
+      openDetailModal(selectedPekerjaanId);
+      toggleElement('formAdendum');
+
+      Swal.fire({ icon: 'success', title: 'Adendum Kontrak Disimpan!', background: '#1a1d29', color: '#fff', timer: 1200, showConfirmButton: false });
+    }
+
+    function handleCreateUser(e) {
+      e.preventDefault();
+      database.users.push({
+        user_id: 'USR-' + String(database.users.length + 1).padStart(2, '0'),
+        username: document.getElementById('addUsername').value,
+        nama: document.getElementById('addNamaUser').value,
+        email: document.getElementById('addEmailUser').value,
+        role: document.getElementById('addRoleUser').value,
+        status: 'AKTIF',
+        unit_kerja: document.getElementById('addUnitKerja').value
+      });
+
+      renderUserManagementTable();
+      closeModal('modalTambahUser');
+      Swal.fire({ icon: 'success', title: 'User Baru Dibuat!', background: '#1a1d29', color: '#fff', timer: 1200, showConfirmButton: false });
+    }
+
+    function toggleUserStatus(userId) {
+      const u = database.users.find(usr => usr.user_id === userId);
+      if (u) {
+        u.status = u.status === 'AKTIF' ? 'NONAKTIF' : 'AKTIF';
+        renderUserManagementTable();
+        Swal.fire({ icon: 'info', title: `Status user diubah ke ${u.status}`, background: '#1a1d29', color: '#fff', timer: 1000, showConfirmButton: false });
+      }
+    }
+
+    // ROLE SWITCHER ENGINE
+    function handleRoleChange(newRole) {
+      currentRole = newRole;
+      const adminSection = document.getElementById('adminUserSection');
+      const actionBtns = document.querySelectorAll('.role-admin-user');
+      const tag = document.getElementById('roleBadgeTag');
+
+      if (newRole === 'ADMIN') {
+        adminSection.classList.remove('hidden');
+        actionBtns.forEach(btn => btn.classList.remove('hidden'));
+        tag.className = "inline-block px-3 py-1 rounded-full bg-purple-950/80 text-purple-400 text-xs font-bold border border-purple-800/60";
+        tag.innerHTML = `<i class="fa-solid fa-user-shield mr-1"></i> Mode Admin Utama (Akses Penuh)`;
+      } else if (newRole === 'USER') {
+        adminSection.classList.add('hidden');
+        actionBtns.forEach(btn => btn.classList.remove('hidden'));
+        tag.className = "inline-block px-3 py-1 rounded-full bg-cyan-950/80 text-cyan-400 text-xs font-bold border border-cyan-800/60";
+        tag.innerHTML = `<i class="fa-solid fa-person-digging mr-1"></i> Mode Pengawas Lapangan (Input Hak Akses)`;
+      } else {
+        adminSection.classList.add('hidden');
+        actionBtns.forEach(btn => btn.classList.add('hidden'));
+        tag.className = "inline-block px-3 py-1 rounded-full bg-emerald-950/80 text-emerald-400 text-xs font-bold border border-emerald-800/60";
+        tag.innerHTML = `<i class="fa-solid fa-globe mr-1"></i> Mode Tampilan Publik (Transparansi Real-Time)`;
+      }
+    }
+
+    // TAB UTILITY FUNCTIONS
+    function switchDetailTab(tabName) {
+      const tabs = ['fisik', 'keuangan', 'adendum', 'risiko'];
+      tabs.forEach(t => {
+        document.getElementById(`detTab${capitalize(t)}`).classList.add('hidden');
+        document.getElementById(`tabBtn${capitalize(t)}`).className = "pb-2 text-gray-400 hover:text-white";
+      });
+
+      document.getElementById(`detTab${capitalize(tabName)}`).classList.remove('hidden');
+      document.getElementById(`tabBtn${capitalize(tabName)}`).className = "pb-2 border-b-2 border-cyan-400 text-cyan-400 font-bold";
+    }
+
+    function toggleNotifDrawer() {
+      document.getElementById('notifDrawer').classList.toggle('hidden');
+    }
+
+    function toggleElement(id) {
+      document.getElementById(id).classList.toggle('hidden');
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.add('hidden');
+    }
+
+    function openModalTambahPekerjaan() {
+      document.getElementById('modalTambahPekerjaan').classList.remove('hidden');
+    }
+
+    function openModalTambahUser() {
+      document.getElementById('modalTambahUser').classList.remove('hidden');
+    }
+
+    function openModalGasCode() {
+      document.getElementById('modalGasCode').classList.remove('hidden');
+    }
+
+    function openFormInputFisik() {
+      document.getElementById('formFisik').classList.remove('hidden');
+      document.getElementById('inputFisikTgl').value = new Date().toISOString().split('T')[0];
+    }
+
+    function openFormInputKeuangan() {
+      document.getElementById('formKeuangan').classList.remove('hidden');
+      document.getElementById('inputKeuTgl').value = new Date().toISOString().split('T')[0];
+    }
+
+    function openFormInputAdendum() {
+      document.getElementById('formAdendum').classList.remove('hidden');
+      document.getElementById('inputAdTgl').value = new Date().toISOString().split('T')[0];
+    }
+
+    function filterTableData() {
+      renderTablePekerjaan();
+    }
+
+    function exportReportPDF() {
+      Swal.fire({
+        title: 'Mencetak Laporan PDF...',
+        text: 'Menyiapkan dokumen ringkasan pengawasan fisik & keuangan.',
+        icon: 'info',
+        background: '#1a1d29',
+        color: '#fff',
+        timer: 1500,
+        showConfirmButton: false
+      });
+    }
+
+    // HELPERS & BADGES
+    function getRiskBadgeHTML(risk) {
+      let color = 'bg-emerald-950 text-emerald-400 border-emerald-800';
+      if (risk === 'PERHATIAN') color = 'bg-amber-950 text-amber-400 border-amber-800';
+      if (risk === 'WASPADA') color = 'bg-orange-950 text-orange-400 border-orange-800';
+      if (risk === 'RISIKO TINGGI') color = 'bg-rose-950 text-rose-400 border-rose-800';
+
+      return `<span class="px-2 py-0.5 rounded text-[10px] font-bold border ${color}">${risk}</span>`;
+    }
+
+    function formatRp(val) {
+      return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
+    }
+
+    function capitalize(s) {
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    }
+
+    // GAS CODE TEXTAREA GENERATOR
+    function populateGasCodeModalText() {
+      const gasCode = `/**
+ * SIMON-PRO — Google Apps Script Backend Code.gs
+ */
+function doGet(e) {
+  return HtmlService.createTemplateFromFile('index')
+    .evaluate()
+    .setTitle('SIMON-PRO Monitoring Pekerjaan')
+    .setXframeOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
+}
+
+function getDatabaseData() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  return {
+    pekerjaan: ss.getSheetByName('PEKERJAAN').getDataRange().getValues(),
+    progres_fisik: ss.getSheetByName('PROGRES_FISIK').getDataRange().getValues()
+  };
+}`;
+      document.getElementById('gasCodeTextarea').value = gasCode;
+    }
+
+    function copyGasCode() {
+      const textarea = document.getElementById('gasCodeTextarea');
+      textarea.select();
+      document.execCommand('copy');
+      Swal.fire({ icon: 'success', title: 'Kode Disalin!', text: 'Salin kode ke editor Apps Script Code.gs Anda.', background: '#1a1d29', color: '#fff', timer: 1200, showConfirmButton: false });
+    }
+  </script>
+</body>
+</html>
